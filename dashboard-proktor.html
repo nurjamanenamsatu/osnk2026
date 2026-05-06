@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Monitoring Proktor (Connected to Supabase)</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Plugin ChartJS Datalabels -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <!-- Library Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Library Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container { max-width: 1280px; margin: 0 auto; }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .header-left h1 { margin: 0; font-size: 1.5rem; color: #0f172a; }
+        .header-left p { margin: 5px 0 0 0; color: var(--text-muted); font-size: 0.9rem; }
+
+        /* Controls */
+        .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .filter-group { display: flex; align-items: center; gap: 8px; }
+        label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+        
+        select {
+            padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; 
+            font-size: 0.9rem; background: white; outline: none;
+        }
+        
+        .btn-upload {
+            background-color: var(--primary); color: white; border: none; padding: 8px 16px;
+            border-radius: 6px; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px; font-size: 0.9rem;
+        }
+        .btn-upload:hover { background-color: #1d4ed8; }
+        .btn-upload:disabled { background-color: #94a3b8; cursor: not-allowed; }
+
+        /* Stats Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 24px; }
+        .card {
+            background: var(--bg-card); padding: 20px; border-radius: 12px; border: 1px solid var(--border);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); border-left: 5px solid transparent;
+        }
+        .card.blue { border-left-color: var(--primary); }
+        .card.green { border-left-color: var(--success); }
+        .card.red { border-left-color: var(--danger); }
+        .card.gray { border-left-color: var(--text-muted); }
+
+        .stat-label { color: var(--text-muted); font-size: 0.8rem; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+        .stat-value { font-size: 1.8rem; font-weight: 700; }
+
+        /* Chart */
+        .chart-container { background: var(--bg-card); padding: 24px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 24px; height: 450px; position: relative; }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        #chartTitle { margin: 0; font-size: 1.1rem; color: var(--text-main); }
+        #currentDateTime { 
+            font-weight: 600; 
+            color: var(--text-muted); 
+            font-size: 0.9rem; 
+            background: #f1f5f9; 
+            padding: 6px 12px; 
+            border-radius: 6px;
+        }
+
+        /* Table */
+        .table-container { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background-color: #f8fafc; font-weight: 600; color: var(--text-muted); white-space: nowrap; position: sticky; top: 0; }
+        tr:hover { background-color: #f1f5f9; }
+
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .badge-green { background: #d1fae5; color: #065f46; }
+
+        /* Notification */
+        #notification {
+            position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: #fff;
+            padding: 12px 24px; border-radius: 8px; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 2000;
+        }
+        #notification.show { opacity: 1; }
+
+        /* Loading Indicator */
+        #loadingOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.8); z-index: 1000;
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3; border-top: 4px solid var(--primary);
+            border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 10px; font-weight: 600;">Menghubungkan ke Database...</p>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>Monitoring Sinkronisasi Proktor</h1>
+                <p>Database: Supabase (Connected)</p>
+            </div>
+            
+            <div class="controls">
+                <div class="filter-group">
+                    <label>Wilayah:</label>
+                    <select id="regionFilter" style="width: 180px;">
+                        <option value="all">Semua Wilayah</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>Status:</label>
+                    <select id="statusFilter" style="width: 160px;">
+                        <option value="all">Semua Status</option>
+                        <option value="unsynced">🔴 Belum Sinkron</option>
+                        <option value="synced">🟢 Sudah Sinkron</option>
+                    </select>
+                </div>
+
+                <div style="border-left: 1px solid #e2e8f0; padding-left: 15px; margin-left: 5px;">
+                    <input type="file" id="excelInput" accept=".xlsx, .xls" style="display:none;" />
+                    <button id="btnUpload" class="btn-upload" onclick="document.getElementById('excelInput').click()">📂 Update Database</button>
+                </div>
+            </div>
+        </header>
+
+        <section class="stats-grid">
+            <div class="card blue"><div class="stat-label">Total Data</div><div class="stat-value" id="statTotal">0</div></div>
+            <div class="card green"><div class="stat-label">Sudah Sinkron</div><div class="stat-value" id="statSync">0</div></div>
+            <div class="card red"><div class="stat-label">Belum Sinkron (#)</div><div class="stat-value" id="statUnsync">0</div></div>
+            <div class="card gray"><div class="stat-label">Persentase Sukses</div><div class="stat-value" id="statPercent">0%</div></div>
+        </section>
+
+        <main class="chart-container">
+            <div class="chart-header">
+                <h3 id="chartTitle">Grafik Perbandingan Wilayah</h3>
+                <div id="currentDateTime">Memuat waktu...</div>
+            </div>
+            <canvas id="myChart"></canvas>
+        </main>
+
+        <section class="table-container">
+            <table>
+                <thead>
+                    <tr><th>ID Proktor</th><th>Nama Sekolah</th><th>Wilayah</th><th>Serial Number</th><th>Status</th></tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </section>
+    </div>
+
+    <div id="notification">Notifikasi</div>
+
+    <script>
+        // ==========================================
+        // KONFIGURASI SUPABASE (SUDAH DIISI)
+        // ==========================================
+        const SUPABASE_URL = 'https://pqgkvovwxdvlztyvjqkq.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxZ2t2b3Z3eGR2bHp0eXZqcWtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNjc5OTcsImV4cCI6MjA5MzY0Mzk5N30.DT3vvqlJdMZ5HSkrtu_9NmGxYGBtr5mh8NXGnerFkio';
+
+        // Inisialisasi Supabase Client
+        const { createClient } = supabase;
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Register Datalabels Plugin
+        Chart.register(ChartDataLabels);
+
+        // --- STATE & DATA ---
+        let currentData = []; 
+        let chartInstance = null;
+        let currentRegion = 'all';
+        let currentStatus = 'all';
+
+        // --- INIT ---
+        window.onload = async function() {
+            // Jalankan Jam
+            setInterval(updateDateTime, 1000);
+            updateDateTime();
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+
+            // Ambil Data dari Database
+            await fetchDataFromSupabase();
+            
+            // Setup Filter Listeners
+            document.getElementById('regionFilter').addEventListener('change', (e) => { 
+                currentRegion = e.target.value; renderDashboard(); 
+            });
+            document.getElementById('statusFilter').addEventListener('change', (e) => { 
+                currentStatus = e.target.value; renderDashboard(); 
+            });
+            document.getElementById('excelInput').addEventListener('change', handleFileUpload);
+
+            renderDashboard();
+            document.getElementById('loadingOverlay').style.display = 'none';
+        };
+
+        // --- DATABASE FUNCTIONS ---
+
+        async function fetchDataFromSupabase() {
+            console.log("Fetching data...");
+            const { data, error } = await _supabase
+                .from('proktors')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching data:', error);
+                alert("Gagal mengambil data database. Pastikan tabel 'proktors' sudah dibuat di SQL Editor Supabase.");
+            } else {
+                console.log("Data fetched:", data);
+                currentData = data.map(row => ({
+                    id: row.id,
+                    id_proktor: row.id_proktor,
+                    name: row.nama_sekolah || '-',
+                    shortName: row.short_name || extractShortName(row.nama_sekolah),
+                    region: row.wilayah || 'Unknown',
+                    serial: row.serial || '',
+                    status: row.status,
+                    isUnsynced: row.is_unsynced || false
+                }));
+            }
+        }
+
+        async function saveToSupabase(processedData) {
+            const btn = document.getElementById('btnUpload');
+            btn.disabled = true;
+            btn.textContent = "Mengirim ke Database...";
+
+            try {
+                // 1. Hapus data lama di database (Refresh mode)
+                const { error: deleteError } = await _supabase
+                    .from('proktors')
+                    .delete()
+                    .gte('id', 1);
+
+                if (deleteError) throw deleteError;
+
+                // 2. Insert Data Baru
+                const dataToInsert = processedData.map(item => ({
+                    id_proktor: item.id_proktor || item.id,
+                    nama_sekolah: item.name,
+                    short_name: item.shortName,
+                    wilayah: item.region,
+                    serial: item.serial,
+                    status: item.status,
+                    is_unsynced: item.isUnsynced
+                }));
+
+                const { error: insertError } = await _supabase
+                    .from('proktors')
+                    .insert(dataToInsert);
+
+                if (insertError) throw insertError;
+
+                // 3. Refresh Data dari Server
+                await fetchDataFromSupabase();
+                
+                // 4. Render ulang
+                currentRegion = 'all'; currentStatus = 'all';
+                document.getElementById('regionFilter').value = 'all';
+                document.getElementById('statusFilter').value = 'all';
+                renderDashboard();
+                
+                showNotification(`✅ Berhasil update ${dataToInsert.length} data ke Supabase!`);
+
+            } catch (err) {
+                console.error(err);
+                alert("Gagal menyimpan ke database: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "📂 Update Database";
+            }
+        }
+
+        // --- JAM & TANGGAL ---
+        function updateDateTime() {
+            const now = new Date();
+            const options = { 
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
+            };
+            document.getElementById('currentDateTime').textContent = now.toLocaleDateString('id-ID', options);
+        }
+
+        // --- LOGIC UTAMA ---
+
+        function extractRegion(fullName) {
+            if (!fullName) return "Unknown";
+            const parts = fullName.split(',');
+            return (parts.length > 1) ? parts[1].trim() : "Other";
+        }
+
+        function extractShortName(fullName) {
+            if (!fullName) return "-";
+            return fullName.split(',')[0].trim();
+        }
+
+        function getStatus(serial) {
+            const serialStr = String(serial || "").trim();
+            return (serialStr === '#' || serialStr === '') ? 'Belum Sinkron' : 'Sudah Sinkron';
+        }
+
+        function renderDashboard() {
+            let filtered = currentData;
+            
+            if (currentRegion !== 'all') filtered = filtered.filter(i => i.region === currentRegion);
+            if (currentStatus !== 'all') {
+                if (currentStatus === 'unsynced') filtered = filtered.filter(i => i.isUnsynced);
+                else if (currentStatus === 'synced') filtered = filtered.filter(i => !i.isUnsynced);
+            }
+
+            updateStats(filtered);
+            updateChart(filtered);
+            updateTable(filtered);
+            updateRegionOptions();
+        }
+
+        function updateStats(data) {
+            const total = data.length;
+            const unsynced = data.filter(i => i.isUnsynced).length;
+            const synced = total - unsynced;
+            const percent = total === 0 ? 0 : Math.round((synced / total) * 100);
+            
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statSync').textContent = synced;
+            document.getElementById('statUnsync').textContent = unsynced;
+            document.getElementById('statPercent').textContent = percent + '%';
+        }
+
+        function updateChart(data) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            const titleEl = document.getElementById('chartTitle');
+            
+            if (chartInstance) chartInstance.destroy();
+
+            if (currentRegion === 'all') {
+                titleEl.textContent = "Grafik Perbandingan Wilayah";
+                const regions = [...new Set(data.map(d => d.region))].sort();
+                
+                let dataSync = [], dataUnsync = [];
+                regions.forEach(r => {
+                    const regionItems = currentData.filter(d => d.region === r);
+                    dataSync.push(regionItems.filter(d => !d.isUnsynced).length);
+                    dataUnsync.push(regionItems.filter(d => d.isUnsynced).length);
+                });
+
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: regions,
+                        datasets: [
+                            { label: 'Belum Sinkron', data: dataUnsync, backgroundColor: '#ef4444', borderRadius: 4, barPercentage: 0.6 },
+                            { label: 'Sudah Sinkron', data: dataSync, backgroundColor: '#10b981', borderRadius: 4, barPercentage: 0.6 }
+                        ]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' },
+                            datalabels: {
+                                color: 'white', anchor: 'center', align: 'center', font: { weight: 'bold', size: 11 },
+                                formatter: function(value, context) {
+                                    if (value === 0) return '';
+                                    const chart = context.chart;
+                                    const dataIndex = context.dataIndex;
+                                    let total = 0;
+                                    chart.data.datasets.forEach(ds => { total += ds.data[dataIndex]; });
+                                    const percent = Math.round((value / total) * 100);
+                                    return `${value} (${percent}%)`;
+                                }
+                            }
+                        },
+                        scales: { x: { stacked: true, title: {display: true, text: 'Jumlah Unit'} }, y: { stacked: true, grid: { display: false } } }
+                    }
+                });
+            } else {
+                titleEl.textContent = `Detail Sekolah di ${currentRegion}`;
+                let chartData = [...data];
+                chartData.sort((a, b) => a.shortName.localeCompare(b.shortName));
+                const displayData = chartData.slice(0, 20);
+                const labels = displayData.map(d => d.shortName);
+                const counts = displayData.map(() => 1);
+                const colors = displayData.map(d => d.isUnsynced ? '#ef4444' : '#10b981');
+
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels: labels, datasets: [{ label: 'Status', data: counts, backgroundColor: colors, borderRadius: 4 }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: { color: 'white', anchor: 'end', align: 'top', offset: 0, font: { weight: 'bold' }, formatter: (v) => v > 0 ? '1' : '' }
+                        },
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 45, minRotation: 0, font: { size: 10 } } } }
+                    }
+                });
+            }
+        }
+
+        function updateTable(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 30px;">Tidak ada data.</td></tr>';
+                return;
+            }
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                const badgeClass = item.isUnsynced ? 'badge-red' : 'badge-green';
+                tr.innerHTML = `
+                    <td style="font-family:monospace; font-size:0.8rem;">${item.id_proktor}</td>
+                    <td><strong>${item.shortName}</strong><br><span style="font-size:0.75rem; color:#64748b;">${item.name}</span></td>
+                    <td>${item.region}</td>
+                    <td style="font-family:monospace; color:${item.isUnsynced ? '#ef4444' : '#10b981'}">${item.serial}</td>
+                    <td><span class="badge ${badgeClass}">${item.status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateRegionOptions() {
+            if (currentRegion !== 'all') return;
+            const regions = [...new Set(currentData.map(item => item.region))].sort();
+            const select = document.getElementById('regionFilter');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="all">Semua Wilayah</option>';
+            regions.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r; opt.textContent = r;
+                select.appendChild(opt);
+            });
+            select.value = currentVal;
+        }
+
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async function(ev) {
+                try {
+                    const data = new Uint8Array(ev.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+                    if (jsonData.length === 0) return alert("File kosong.");
+                    
+                    const processedData = jsonData.map((row, index) => {
+                        const region = extractRegion(row['Nama Komputer Proktor']);
+                        const status = getStatus(row['Serial']);
+                        return {
+                            id_proktor: row['ID Proktor'] || `ID-${index}`,
+                            name: row['Nama Komputer Proktor'] || '-',
+                            shortName: extractShortName(row['Nama Komputer Proktor']),
+                            region: region,
+                            serial: row['Serial'] || '',
+                            status: status,
+                            isUnsynced: status === 'Belum Sinkron'
+                        };
+                    });
+
+                    await saveToSupabase(processedData);
+
+                } catch (err) { 
+                    alert("Gagal membaca file: " + err.message); 
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function showNotification(msg) {
+            const el = document.getElementById('notification');
+            el.textContent = msg; el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>
