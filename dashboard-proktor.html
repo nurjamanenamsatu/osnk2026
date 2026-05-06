@@ -3,15 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Monitoring Proktor (Connected to Supabase)</title>
+    <title>Dashboard Monitoring Proktor (Secure)</title>
     
     <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Plugin ChartJS Datalabels -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-    <!-- Library Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Library Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
@@ -32,12 +29,88 @@
             background-color: var(--bg-body);
             color: var(--text-main);
             margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden; /* Prevent scroll on login */
+        }
+
+        /* --- LOGIN STYLES --- */
+        #loginOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+        }
+
+        .login-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 5px; color: #1e293b; }
+        .login-subtitle { color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem; }
+
+        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; color: #475569; }
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
+
+        .btn-login {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-login:hover { background-color: #1d4ed8; }
+
+        .error-msg {
+            color: var(--danger);
+            font-size: 0.85rem;
+            margin-top: 15px;
+            display: none;
+            font-weight: 500;
+            background: #fee2e2;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        /* --- DASHBOARD STYLES --- */
+        .dashboard-container {
+            display: none; /* Hidden until login */
+            height: 100%;
+            overflow-y: auto;
             padding: 20px;
+            box-sizing: border-box;
         }
 
         .container { max-width: 1280px; margin: 0 auto; }
 
-        /* Header */
         header {
             display: flex;
             justify-content: space-between;
@@ -54,7 +127,19 @@
         .header-left h1 { margin: 0; font-size: 1.5rem; color: #0f172a; }
         .header-left p { margin: 5px 0 0 0; color: var(--text-muted); font-size: 0.9rem; }
 
-        /* Controls */
+        .header-right { display: flex; align-items: center; gap: 20px; }
+
+        .user-info {
+            display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text-main);
+            background: #f1f5f9; padding: 8px 16px; border-radius: 20px; font-size: 0.9rem;
+        }
+
+        .btn-logout {
+            background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+            padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500;
+        }
+        .btn-logout:hover { background: #f1f5f9; color: var(--danger); border-color: var(--danger); }
+
         .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
         .filter-group { display: flex; align-items: center; gap: 8px; }
         label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
@@ -114,18 +199,12 @@
         .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
         .badge-red { background: #fee2e2; color: #991b1b; }
         .badge-green { background: #d1fae5; color: #065f46; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
 
-        /* Notification */
-        #notification {
-            position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: #fff;
-            padding: 12px 24px; border-radius: 8px; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 2000;
-        }
-        #notification.show { opacity: 1; }
-
-        /* Loading Indicator */
+        /* Loading */
         #loadingOverlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.8); z-index: 1000;
+            background: rgba(255,255,255,0.8); z-index: 2000;
             display: none; justify-content: center; align-items: center; flex-direction: column;
         }
         .spinner {
@@ -133,103 +212,218 @@
             border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Notification */
+        #notification {
+            position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: #fff;
+            padding: 12px 24px; border-radius: 8px; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 3000;
+        }
+        #notification.show { opacity: 1; }
     </style>
 </head>
 <body>
 
-    <!-- Loading Screen -->
-    <div id="loadingOverlay">
-        <div class="spinner"></div>
-        <p style="margin-top: 10px; font-weight: 600;">Menghubungkan ke Database...</p>
+    <!-- 1. LOGIN OVERLAY -->
+    <div id="loginOverlay">
+        <div class="login-card">
+            <h2 class="login-title">Login Proktor</h2>
+            <p class="login-subtitle">Masuk untuk mengakses dashboard</p>
+
+            <form id="loginForm" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Masukkan username" autocomplete="off">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Masukkan password">
+                </div>
+
+                <button class="btn-login" onclick="attemptLogin()">Login Masuk</button>
+                <div id="loginError" class="error-msg">Username atau password salah!</div>
+            </form>
+        </div>
     </div>
 
-    <div class="container">
-        <header>
-            <div class="header-left">
-                <h1>Monitoring Sinkronisasi Proktor</h1>
-                <p>Database: Supabase (Connected)</p>
-            </div>
-            
-            <div class="controls">
-                <div class="filter-group">
-                    <label>Wilayah:</label>
-                    <select id="regionFilter" style="width: 180px;">
-                        <option value="all">Semua Wilayah</option>
-                    </select>
+    <!-- 2. DASHBOARD -->
+    <div class="dashboard-container" id="dashboard">
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay">
+            <div class="spinner"></div>
+            <p style="margin-top: 10px; font-weight: 600;">Memuat Data...</p>
+        </div>
+
+        <div class="container">
+            <header>
+                <div class="header-left">
+                    <h1>Monitoring Sinkronisasi Proktor</h1>
+                    <p>Database: Supabase (Connected)</p>
                 </div>
-
-                <div class="filter-group">
-                    <label>Status:</label>
-                    <select id="statusFilter" style="width: 160px;">
-                        <option value="all">Semua Status</option>
-                        <option value="unsynced">🔴 Belum Sinkron</option>
-                        <option value="synced">🟢 Sudah Sinkron</option>
-                    </select>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span id="userRoleBadge" class="badge badge-blue">ADMIN</span>
+                        <span id="displayUsername">Admin</span>
+                    </div>
+                    <button class="btn-logout" onclick="logout()">Keluar</button>
                 </div>
+            </header>
 
-                <div style="border-left: 1px solid #e2e8f0; padding-left: 15px; margin-left: 5px;">
-                    <input type="file" id="excelInput" accept=".xlsx, .xls" style="display:none;" />
-                    <button id="btnUpload" class="btn-upload" onclick="document.getElementById('excelInput').click()">📂 Update Database</button>
+            <header style="margin-top: 0; padding: 15px;">
+                <div class="controls">
+                    <div class="filter-group">
+                        <label>Wilayah:</label>
+                        <select id="regionFilter" style="width: 180px;">
+                            <option value="all">Semua Wilayah</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Status:</label>
+                        <select id="statusFilter" style="width: 160px;">
+                            <option value="all">Semua Status</option>
+                            <option value="unsynced">🔴 Belum Sinkron</option>
+                            <option value="synced">🟢 Sudah Sinkron</option>
+                        </select>
+                    </div>
+
+                    <!-- Upload Section: Hanya Admin yang bisa melihat -->
+                    <div id="uploadSection" style="border-left: 1px solid #e2e8f0; padding-left: 15px; margin-left: 5px; display: none;">
+                        <input type="file" id="excelInput" accept=".xlsx, .xls" style="display:none;" />
+                        <button id="btnUpload" class="btn-upload" onclick="document.getElementById('excelInput').click()">📂 Update Database</button>
+                    </div>
                 </div>
-            </div>
-        </header>
+            </header>
 
-        <section class="stats-grid">
-            <div class="card blue"><div class="stat-label">Total Data</div><div class="stat-value" id="statTotal">0</div></div>
-            <div class="card green"><div class="stat-label">Sudah Sinkron</div><div class="stat-value" id="statSync">0</div></div>
-            <div class="card red"><div class="stat-label">Belum Sinkron (#)</div><div class="stat-value" id="statUnsync">0</div></div>
-            <div class="card gray"><div class="stat-label">Persentase Sukses</div><div class="stat-value" id="statPercent">0%</div></div>
-        </section>
+            <section class="stats-grid">
+                <div class="card blue"><div class="stat-label">Total Data</div><div class="stat-value" id="statTotal">0</div></div>
+                <div class="card green"><div class="stat-label">Sudah Sinkron</div><div class="stat-value" id="statSync">0</div></div>
+                <div class="card red"><div class="stat-label">Belum Sinkron (#)</div><div class="stat-value" id="statUnsync">0</div></div>
+                <div class="card gray"><div class="stat-label">Persentase Sukses</div><div class="stat-value" id="statPercent">0%</div></div>
+            </section>
 
-        <main class="chart-container">
-            <div class="chart-header">
-                <h3 id="chartTitle">Grafik Perbandingan Wilayah</h3>
-                <div id="currentDateTime">Memuat waktu...</div>
-            </div>
-            <canvas id="myChart"></canvas>
-        </main>
+            <main class="chart-container">
+                <div class="chart-header">
+                    <h3 id="chartTitle">Grafik Perbandingan Wilayah</h3>
+                    <div id="currentDateTime">Memuat waktu...</div>
+                </div>
+                <canvas id="myChart"></canvas>
+            </main>
 
-        <section class="table-container">
-            <table>
-                <thead>
-                    <tr><th>ID Proktor</th><th>Nama Sekolah</th><th>Wilayah</th><th>Serial Number</th><th>Status</th></tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
-            </table>
-        </section>
+            <section class="table-container">
+                <table>
+                    <thead>
+                        <tr><th>ID Proktor</th><th>Nama Sekolah</th><th>Wilayah</th><th>Serial Number</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </section>
+        </div>
     </div>
 
     <div id="notification">Notifikasi</div>
 
     <script>
         // ==========================================
-        // KONFIGURASI SUPABASE (SUDAH DIISI)
+        // 1. KONFIGURASI SUPABASE
         // ==========================================
         const SUPABASE_URL = 'https://pqgkvovwxdvlztyvjqkq.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxZ2t2b3Z3eGR2bHp0eXZqcWtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNjc5OTcsImV4cCI6MjA5MzY0Mzk5N30.DT3vvqlJdMZ5HSkrtu_9NmGxYGBtr5mh8NXGnerFkio';
 
-        // Inisialisasi Supabase Client
         const { createClient } = supabase;
         const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        // Register Datalabels Plugin
         Chart.register(ChartDataLabels);
 
-        // --- STATE & DATA ---
+        // --- AUTHENTICATION STATE ---
+        // User Database Hardcoded (Frontend Only)
+        const USERS_DB = [
+            { user: 'admin', pass: 'admin117', role: 'admin', label: 'ADMINISTRATOR' },
+            { user: 'operator', pass: 'operator', role: 'operator', label: 'OPERATOR' }
+        ];
+        
+        let currentUser = null;
+
+        // --- APP STATE ---
         let currentData = []; 
         let chartInstance = null;
         let currentRegion = 'all';
         let currentStatus = 'all';
 
         // --- INIT ---
-        window.onload = async function() {
+        window.onload = function() {
             // Jalankan Jam
             setInterval(updateDateTime, 1000);
             updateDateTime();
 
-            document.getElementById('loadingOverlay').style.display = 'flex';
+            // Cek apakah ada session login (localStorage)
+            const storedUser = localStorage.getItem('proktorUserSecure');
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+                showDashboard();
+            } else {
+                document.getElementById('loginOverlay').style.display = 'flex';
+            }
+        };
 
-            // Ambil Data dari Database
+        // --- LOGIN FUNCTIONS ---
+        function attemptLogin() {
+            const uInput = document.getElementById('username');
+            const pInput = document.getElementById('password');
+            const u = (uInput.value || "").trim();
+            const p = (pInput.value || "").trim();
+            const errBox = document.getElementById('loginError');
+
+            if(u === "" || p === "") {
+                errBox.style.display = 'block'; errBox.textContent = "Username dan Password wajib diisi.";
+                return;
+            }
+
+            const foundUser = USERS_DB.find(user => user.user === u && user.pass === p);
+
+            if (foundUser) {
+                currentUser = foundUser;
+                localStorage.setItem('proktorUserSecure', JSON.stringify(currentUser));
+                errBox.style.display = 'none';
+                showDashboard();
+            } else {
+                errBox.style.display = 'block';
+                errBox.textContent = "Username atau password salah!";
+                const card = document.querySelector('.login-card');
+                card.style.transform = "translateX(10px)";
+                setTimeout(() => card.style.transform = "translateX(-10px)", 100);
+                setTimeout(() => card.style.transform = "translateX(0)", 200);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('proktorUserSecure');
+            currentUser = null;
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('loginOverlay').style.display = 'flex';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('loginError').style.display = 'none';
+        }
+
+        async function showDashboard() {
+            document.getElementById('loginOverlay').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            document.body.style.overflow = 'auto';
+
+            document.getElementById('displayUsername').textContent = currentUser.label;
+            const badge = document.getElementById('userRoleBadge');
+            badge.textContent = currentUser.role.toUpperCase();
+            badge.className = currentUser.role === 'admin' ? 'badge badge-red' : 'badge badge-blue';
+
+            // PERMISION CHECK: Hapus atau tampilkan tombol upload
+            const uploadSection = document.getElementById('uploadSection');
+            if (currentUser.role === 'admin') {
+                uploadSection.style.display = 'flex'; // Admin bisa upload
+            } else {
+                uploadSection.style.display = 'none'; // Operator tidak bisa
+            }
+
+            // Fetch Data
             await fetchDataFromSupabase();
             
             // Setup Filter Listeners
@@ -242,11 +436,9 @@
             document.getElementById('excelInput').addEventListener('change', handleFileUpload);
 
             renderDashboard();
-            document.getElementById('loadingOverlay').style.display = 'none';
-        };
+        }
 
         // --- DATABASE FUNCTIONS ---
-
         async function fetchDataFromSupabase() {
             console.log("Fetching data...");
             const { data, error } = await _supabase
@@ -256,9 +448,8 @@
 
             if (error) {
                 console.error('Error fetching data:', error);
-                alert("Gagal mengambil data database. Pastikan tabel 'proktors' sudah dibuat di SQL Editor Supabase.");
+                alert("Gagal mengambil data database.");
             } else {
-                console.log("Data fetched:", data);
                 currentData = data.map(row => ({
                     id: row.id,
                     id_proktor: row.id_proktor,
@@ -273,12 +464,18 @@
         }
 
         async function saveToSupabase(processedData) {
+            // Double Check Permission (Frontend Only)
+            if (!currentUser || currentUser.role !== 'admin') {
+                alert("Anda tidak memiliki izin untuk mengupload data.");
+                return;
+            }
+
             const btn = document.getElementById('btnUpload');
             btn.disabled = true;
             btn.textContent = "Mengirim ke Database...";
 
             try {
-                // 1. Hapus data lama di database (Refresh mode)
+                // 1. Hapus Data Lama
                 const { error: deleteError } = await _supabase
                     .from('proktors')
                     .delete()
@@ -303,20 +500,14 @@
 
                 if (insertError) throw insertError;
 
-                // 3. Refresh Data dari Server
+                // 3. Refresh Data
                 await fetchDataFromSupabase();
-                
-                // 4. Render ulang
-                currentRegion = 'all'; currentStatus = 'all';
-                document.getElementById('regionFilter').value = 'all';
-                document.getElementById('statusFilter').value = 'all';
                 renderDashboard();
-                
-                showNotification(`✅ Berhasil update ${dataToInsert.length} data ke Supabase!`);
+                showNotification(`✅ Berhasil update ${dataToInsert.length} data!`);
 
             } catch (err) {
                 console.error(err);
-                alert("Gagal menyimpan ke database: " + err.message);
+                alert("Gagal menyimpan: " + err.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = "📂 Update Database";
@@ -334,7 +525,6 @@
         }
 
         // --- LOGIC UTAMA ---
-
         function extractRegion(fullName) {
             if (!fullName) return "Unknown";
             const parts = fullName.split(',');
@@ -381,7 +571,6 @@
         function updateChart(data) {
             const ctx = document.getElementById('myChart').getContext('2d');
             const titleEl = document.getElementById('chartTitle');
-            
             if (chartInstance) chartInstance.destroy();
 
             if (currentRegion === 'all') {
@@ -486,6 +675,12 @@
         }
 
         function handleFileUpload(e) {
+            // Cek Permission lagi sebelum membuka dialog file (Meskipun sudah disembunyikan)
+            if (!currentUser || currentUser.role !== 'admin') {
+                alert("Anda tidak memiliki izin.");
+                return;
+            }
+
             const file = e.target.files[0];
             if (!file) return;
             
@@ -525,6 +720,10 @@
             el.textContent = msg; el.classList.add('show');
             setTimeout(() => el.classList.remove('show'), 3000);
         }
+
+        document.getElementById('password').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') attemptLogin();
+        });
     </script>
 </body>
 </html>
